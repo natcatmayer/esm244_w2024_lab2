@@ -1,0 +1,115 @@
+---
+title: "post_lab_2_practice"
+author: "natalie mayer"
+format: 
+  html:
+    code-fold: show
+    toc: true
+    number-sections: true
+editor: visual
+execute:
+  echo: true
+  message: false
+  warning: false
+---
+
+```{r}
+library(tidyverse)
+library(here)
+library(tsibble)
+library(feasts)
+library(fable)
+```
+
+```{r}
+mauna_loa_df <- read_csv(here('data/co2_mauna_loa.csv'))
+```
+
+## Analysis Part 1
+
+```{r}
+# convert data frame to time series 
+
+mauna_loa_ts <- mauna_loa_df %>%
+  mutate(date = tsibble::yearmonth(date)) %>%
+  as_tsibble(key = NULL, 
+             index = date)
+
+# create exploratory season plot
+
+ggplot(mauna_loa_ts, aes(x = date, y = co2_mean)) + 
+  geom_point() + 
+  geom_line(linewidth = 0.25) + 
+  labs(x = "Time", 
+       y = "Average Atmospheric CO2 Concentration", 
+       title = "Keeling Curve")
+
+# exploratory subseries plot 
+
+mauna_loa_23 <- mauna_loa_ts %>% filter_index("2023-01" ~ "2024-01")
+
+ggplot(mauna_loa_23, aes(x = date, y = co2_mean)) + 
+  geom_point() + 
+  geom_line() + 
+  labs(x = "Time", 
+       y = "Average Atmospheric CO2 Concentration", 
+       title = "Atmospheric CO2 at Maua Loa in 2023")
+
+# fun w/ facet wrap 
+
+ggplot(mauna_loa_ts, aes(x = date, y = co2_mean)) + 
+  geom_point() + 
+  geom_line(linewidth = 0.25) + 
+  facet_wrap(~month(date, label=TRUE))
+  labs(x = "Time", 
+       y = "Average Atmospheric CO2 Concentration", 
+       title = "Monhtly Atmospheric CO2 Trends")
+
+```
+
+
+## Analysis Part 2
+
+```{r}
+mauna_loa_ets <- mauna_loa_ts %>%
+  model(ets = ETS(co2_mean ~ season(method="M") + trend(method="A")))
+
+co2_forecast <- mauna_loa_ets %>%
+  forecast(h = "20 years")
+
+co2_forecast %>%
+  autoplot(mauna_loa_ts)
+```
+
+* trend and seasonality are both relevant 
+* relationship is additive; seasonality does not increase as trends up
+
+
+```{r}
+# fit modeled values against actual observed values 
+
+co2_predicted <- mauna_loa_ets %>%
+  broom::augment()
+
+ggplot(co2_predicted) +
+  geom_line(aes(x= date, 
+                y= co2_mean)) + 
+  geom_line(aes(x= date, 
+                y= .fitted), 
+                color= 'red', 
+                alpha= .7)
+
+ggplot(co2_predicted, aes(x= .resid)) + 
+  geom_histogram()
+```
+
+* trend is increasing.... more than linear... almost exponential?
+* consistent seasonality from N. Hemisphere winter and summer...
+* additive
+
+
+
+
+
+
+
